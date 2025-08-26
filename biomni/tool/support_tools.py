@@ -105,20 +105,32 @@ def download_synapse_data(
     Requires SYNAPSE_AUTH_TOKEN environment variable for authentication.
     Automatically installs synapseclient if not available.
 
+    CRITICAL: Always check entity type from query_synapse() search results or user hints and pass the correct entity_type!
+    The default entity_type="dataset" may not be appropriate for your entity.
+
+    IMPORTANT: Multiple entity IDs are only supported for entity_type="file".
+    For datasets, folders, and projects, only a single entity_id is supported.
+
     Parameters
     ----------
     entity_ids : str or list of str
-        Synapse entity ID(s) to download (e.g., "syn123456" or ["syn123", "syn456"])
+        Synapse entity ID(s) to download. 
+        - For files: Can be a single ID string or list of ID strings
+        - For datasets/folders/projects: Must be a single ID string only
     download_location : str, default "."
         Directory where files will be downloaded (current directory by default)
     follow_link : bool, default False
         Whether to follow links to download the linked entity
     recursive : bool, default False
         Whether to recursively download folders and their contents
+        ONLY valid for entity_type="folder" - ignored for other types
     timeout : int, default 300
         Timeout in seconds for each download operation
     entity_type : str, default "dataset"
         Type of Synapse entity ("dataset", "file", "folder", "project")
+        MUST match the actual entity type from search results or user hints!
+        The default "dataset" should only be used for actual datasets.
+        Check the 'node_type' field in search results to determine correct type.
 
     Returns
     -------
@@ -130,16 +142,28 @@ def download_synapse_data(
     Requires SYNAPSE_AUTH_TOKEN environment variable with your Synapse personal
     access token for authentication.
 
+    AGENT USAGE GUIDANCE:
+    1. Always check the 'node_type' field from query_synapse() search results or user hints
+    2. Pass the correct entity_type parameter matching the node_type
+    3. Do NOT rely on the default entity_type="dataset" unless confirmed
+    4. For multiple downloads, ensure all entities are of type "file"
+    5. Only use recursive=True with entity_type="folder"
+
     Examples
     --------
-    # Download a single file to current directory
-    download_synapse_data("syn123456")
-
-    # Download multiple files to specific location
-    download_synapse_data(["syn123", "syn456"], download_location="/path/to/data")
-
-    # Download folder recursively with longer timeout
-    download_synapse_data("syn789", recursive=True, timeout=600)
+    # After searching with query_synapse(), check node_type and use appropriate entity_type:
+    
+    # If search result shows 'node_type': 'dataset'
+    download_synapse_data("syn123456", entity_type="dataset")
+    
+    # If search result shows 'node_type': 'file'  
+    download_synapse_data("syn654321", entity_type="file")
+    
+    # If search result shows 'node_type': 'folder'
+    download_synapse_data("syn789012", entity_type="folder", recursive=True)
+    
+    # Multiple files (only if all are 'node_type': 'file')
+    download_synapse_data(["syn111", "syn222"], entity_type="file")
     """
     import os
     import subprocess
@@ -172,6 +196,24 @@ def download_synapse_data(
     # Ensure entity_ids is a list
     if isinstance(entity_ids, str):
         entity_ids = [entity_ids]
+    
+    # Validate that multiple IDs are only used with file entity type
+    if len(entity_ids) > 1 and entity_type != "file":
+        return {
+            "success": False,
+            "error": f"Multiple entity IDs are only supported for entity_type='file'. "
+                   f"For entity_type='{entity_type}', only a single entity_id is supported.",
+            "suggestion": f"Use a single entity_id string instead of a list, or change entity_type to 'file'",
+        }
+    
+    # Validate that recursive is only used with folder entity type
+    if recursive and entity_type != "folder":
+        return {
+            "success": False,
+            "error": f"recursive=True is only valid for entity_type='folder'. "
+                   f"For entity_type='{entity_type}', recursive should be False.",
+            "suggestion": f"Set recursive=False, or change entity_type to 'folder' if appropriate",
+        }
 
     # Create download directory if it doesn't exist
     os.makedirs(download_location, exist_ok=True)
@@ -183,14 +225,14 @@ def download_synapse_data(
         try:
             # Build synapse download command with authentication
             if entity_type == "dataset":
-                # For datasets, use query syntax
-                cmd = ["synapse", "get", "-q", f"select * from {entity_id}", "-p", synapse_token, "--downloadLocation", download_location]
+                # For datasets, use query syntax to download the actual files
+                cmd = ["synapse", "-p", synapse_token, "get", "-q", f"select * from {entity_id}", "--downloadLocation", download_location]
             else:
                 # For files, folders, projects, use direct ID
-                cmd = ["synapse", "get", entity_id, "-p", synapse_token, "--downloadLocation", download_location]
+                cmd = ["synapse", "-p", synapse_token, "get", entity_id, "--downloadLocation", download_location]
 
-            # Add recursive flag for folders or if explicitly requested
-            if entity_type == "folder" or recursive:
+            # Add recursive flag only for folders (validation above ensures recursive is only True for folders)
+            if entity_type == "folder" and recursive:
                 cmd.append("-r")
                 
             if follow_link:
