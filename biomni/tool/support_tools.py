@@ -97,6 +97,7 @@ def download_synapse_data(
     follow_link: bool = False,
     recursive: bool = False,
     timeout: int = 300,
+    entity_type: str = "dataset",
 ):
     """Download data from Synapse using entity IDs.
 
@@ -116,6 +117,8 @@ def download_synapse_data(
         Whether to recursively download folders and their contents
     timeout : int, default 300
         Timeout in seconds for each download operation
+    entity_type : str, default "dataset"
+        Type of Synapse entity ("dataset", "file", "folder", "project")
 
     Returns
     -------
@@ -179,12 +182,19 @@ def download_synapse_data(
     for entity_id in entity_ids:
         try:
             # Build synapse download command with authentication
-            cmd = ["synapse", "get", entity_id, "-p", synapse_token, "--downloadLocation", download_location]
+            if entity_type == "dataset":
+                # For datasets, use query syntax
+                cmd = ["synapse", "get", "-q", f"select * from {entity_id}", "-p", synapse_token, "--downloadLocation", download_location]
+            else:
+                # For files, folders, projects, use direct ID
+                cmd = ["synapse", "get", entity_id, "-p", synapse_token, "--downloadLocation", download_location]
 
+            # Add recursive flag for folders or if explicitly requested
+            if entity_type == "folder" or recursive:
+                cmd.append("-r")
+                
             if follow_link:
                 cmd.append("--followLink")
-            if recursive:
-                cmd.append("-r")
 
             # Execute download
             result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=timeout)
