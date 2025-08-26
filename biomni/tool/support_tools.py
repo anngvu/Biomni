@@ -1,4 +1,3 @@
-
 import sys
 from io import StringIO
 
@@ -114,7 +113,7 @@ def download_synapse_data(
     Parameters
     ----------
     entity_ids : str or list of str
-        Synapse entity ID(s) to download. 
+        Synapse entity ID(s) to download.
         - For files: Can be a single ID string or list of ID strings
         - For datasets/folders/projects: Must be a single ID string only
     download_location : str, default "."
@@ -152,16 +151,16 @@ def download_synapse_data(
     Examples
     --------
     # After searching with query_synapse(), check node_type and use appropriate entity_type:
-    
+
     # If search result shows 'node_type': 'dataset'
     download_synapse_data("syn123456", entity_type="dataset")
-    
-    # If search result shows 'node_type': 'file'  
+
+    # If search result shows 'node_type': 'file'
     download_synapse_data("syn654321", entity_type="file")
-    
+
     # If search result shows 'node_type': 'folder'
     download_synapse_data("syn789012", entity_type="folder", recursive=True)
-    
+
     # Multiple files (only if all are 'node_type': 'file')
     download_synapse_data(["syn111", "syn222"], entity_type="file")
     """
@@ -196,23 +195,23 @@ def download_synapse_data(
     # Ensure entity_ids is a list
     if isinstance(entity_ids, str):
         entity_ids = [entity_ids]
-    
+
     # Validate that multiple IDs are only used with file entity type
     if len(entity_ids) > 1 and entity_type != "file":
         return {
             "success": False,
             "error": f"Multiple entity IDs are only supported for entity_type='file'. "
-                   f"For entity_type='{entity_type}', only a single entity_id is supported.",
-            "suggestion": f"Use a single entity_id string instead of a list, or change entity_type to 'file'",
+            f"For entity_type='{entity_type}', only a single entity_id is supported.",
+            "suggestion": "Use a single entity_id string instead of a list, or change entity_type to 'file'",
         }
-    
+
     # Validate that recursive is only used with folder entity type
     if recursive and entity_type != "folder":
         return {
             "success": False,
             "error": f"recursive=True is only valid for entity_type='folder'. "
-                   f"For entity_type='{entity_type}', recursive should be False.",
-            "suggestion": f"Set recursive=False, or change entity_type to 'folder' if appropriate",
+            f"For entity_type='{entity_type}', recursive should be False.",
+            "suggestion": "Set recursive=False, or change entity_type to 'folder' if appropriate",
         }
 
     # Create download directory if it doesn't exist
@@ -226,7 +225,16 @@ def download_synapse_data(
             # Build synapse download command with authentication
             if entity_type == "dataset":
                 # For datasets, use query syntax to download the actual files
-                cmd = ["synapse", "-p", synapse_token, "get", "-q", f"select * from {entity_id}", "--downloadLocation", download_location]
+                cmd = [
+                    "synapse",
+                    "-p",
+                    synapse_token,
+                    "get",
+                    "-q",
+                    f"select * from {entity_id}",
+                    "--downloadLocation",
+                    download_location,
+                ]
             else:
                 # For files, folders, projects, use direct ID
                 cmd = ["synapse", "-p", synapse_token, "get", entity_id, "--downloadLocation", download_location]
@@ -234,7 +242,7 @@ def download_synapse_data(
             # Add recursive flag only for folders (validation above ensures recursive is only True for folders)
             if entity_type == "folder" and recursive:
                 cmd.append("-r")
-                
+
             if follow_link:
                 cmd.append("--followLink")
 
